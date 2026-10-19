@@ -11,30 +11,38 @@ const MODEL = process.env.CONTENT_MODEL || "claude-opus-5-5";
 const EFFORT = process.env.CONTENT_EFFORT || "high";
 const MAX_CONTINUATIONS = 5;
 
+// Without credentials the app still works in free (copy-prompt) mode.
+const HAS_KEY = Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
 const client = new Anthropic();
 const app = express();
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(here, "public")));
 app.use("/vendor/marked.esm.js", express.static(path.join(here, "node_modules/marked/lib/marked.esm.js")));
 app.use("/vendor/purify.es.mjs", express.static(path.join(here, "node_modules/dompurify/dist/purify.es.mjs")));
 
 app.get("/api/tools", (_req, res) => {
-  res.json({ tools: publicTools(), model: MODEL });
+  res.json({ tools: publicTools(), model: MODEL, hasKey: HAS_KEY });
+});
+
+// Free mode: return the full prompt so the user can paste it into Claude themselves.
+app.post("/api/prompt", (req, res) => {
+  const prepared = prepare(req.body);
+  if (prepared.error) return res.status(400).json({ error: prepared.error });
+  res.json({ prompt: `${SYSTEM_PROMPT}\n\n---\n\n${prepared.prompt}` });
 });
 
 // Runs a tool (or a follow-up on a previous result) and streams progress as
 // server-sent events: status, source, text, done, error.
 app.post("/api/generate", async (req, res) => {
-  const { toolId, values = {}, profile, notes, timezone, today, turns = [] } = req.body || {};
-  const tool = getTool(toolId);
-  if (!tool) return res.status(400).json({ error: `Unknown tool: ${toolId}` });
+  if (!HAS_KEY) {
+    return res.status(400).json({ error: "No API key is set on the server. Use Free mode, or add ANTHROPIC_API_KEY to .env and restart." });
+  }
+  const prepared = prepare(req.body);
+  if (prepared.error) return res.status(400).json({ error: prepared.error });
 
-  const missing = tool.fields.filter((f) => f.required && isEmpty(values[f.id])).map((f) => f.label);
-  if (missing.length) return res.status(400).json({ error: `Missing: ${missing.join(", ")}` });
-
-  const context = buildContext({ profile, notes, today: today || new Date().toISOString().slice(0, 10), timezone });
-  const messages = [{ role: "user", content: `${context}\n\n<task>\n${tool.build(values)}\n</task>` }];
+  const { turns = [] } = req.body;
+  const messages = [{ role: "user", content: prepared.prompt }];
   for (const t of turns) {
     if ((t.role === "user" || t.role === "assistant") && typeof t.text === "string" && t.text.trim()) {
       messages.push({ role: t.role, content: t.text });
@@ -142,6 +150,23 @@ app.post("/api/generate", async (req, res) => {
   }
 });
 
+// Validates a tool request and builds the first user message (context + task).
+function prepare(body) {
+  const { toolId, values = {}, profile, notes, timezone, today } = body || {};
+  const tool = getTool(toolId);
+  if (!tool) return { error: `Unknown tool: ${toolId}` };
+
+  const missing = tool.fields.filter((f) => f.required && isEmpty(values[f.id])).map((f) => f.label);
+  if (missing.length) return { error: `Missing: ${missing.join(", ")}` };
+  if (tool.requireOne && tool.requireOne.every((id) => isEmpty(values[id]))) {
+    const labels = tool.fields.filter((f) => tool.requireOne.includes(f.id)).map((f) => f.label);
+    return { error: `Fill in one of: ${labels.join(" or ")}` };
+  }
+
+  const context = buildContext({ profile, notes, today: today || new Date().toISOString().slice(0, 10), timezone });
+  return { prompt: `${context}\n\n<task>\n${tool.build(values)}\n</task>` };
+}
+
 function isEmpty(v) {
   return v == null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && v.length === 0);
 }
@@ -155,5 +180,6 @@ function safeParse(json) {
 }
 
 app.listen(PORT, () => {
-  console.log(`Content Studio running at http://localhost:${PORT} (model: ${MODEL})`);
+  console.log(`Content Studio running at http://localhost:${PORT}`);
+  console.log(HAS_KEY ? `Auto mode available (model: ${MODEL})` : "No API key found: Free (copy-prompt) mode only. Add ANTHROPIC_API_KEY to .env to enable Auto mode.");
 });

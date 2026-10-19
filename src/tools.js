@@ -150,6 +150,43 @@ Deliver:
 3. "What the data says" — per-platform summary of the research with sources and dates, including where sources disagree.
 4. A 2-week testing plan to find my own best times, and which metric to judge it on (and where to find it in each platform's analytics).`,
   },
+  {
+    id: "repurpose",
+    number: 8,
+    name: "Repurpose",
+    tagline: "Turn one video, podcast or article into a week of posts.",
+    requireOne: ["source", "sourceUrl"],
+    fields: [
+      { id: "source", label: "Paste the transcript, script or article", type: "longtext", accept: ".txt,.srt,.vtt,.md", placeholder: "Paste a transcript (timestamps help), a script, a blog post or newsletter. You can also load a .txt, .srt or .vtt caption file." },
+      { id: "sourceUrl", label: "…or a link to an article or page", type: "text", placeholder: "https://… (articles and blog posts work best; for videos, paste the transcript above)" },
+      {
+        id: "outputs",
+        label: "What to make from it",
+        type: "multi",
+        options: ["Short clip ideas", "Hooks", "Platform captions", "Carousel", "X / Threads thread", "LinkedIn post", "YouTube title + description", "Newsletter / blog", "Quote graphics"],
+        default: ["Short clip ideas", "Hooks", "Platform captions", "Carousel"],
+        required: true,
+      },
+      { id: "platforms", label: "Platforms", type: "multi", options: PLATFORM_OPTIONS, fromProfile: "platforms", required: true },
+    ],
+    build: (v) => `Repurpose one piece of source content into ${list(v.outputs)} for ${list(v.platforms)}.
+${v.sourceUrl ? `\nSource link: ${v.sourceUrl}\nRead it in full with web fetch before you start.${v.source ? " The pasted text below is part of the same source." : ""}\n` : ""}${v.source?.trim() ? `\n<source_content>\n${v.source.trim()}\n</source_content>\n` : ""}
+Stay faithful to the source: keep its claims, numbers and stories accurate and don't add facts it doesn't contain unless you verified them and say so. Find the strongest moments first: quotable lines, surprising facts, stories, strong opinions, step-by-step advice.
+
+Research first: how each requested format is performing on these platforms right now (length, structure, what's getting reach), and whether any current trend, news or conversation makes part of this source timely.
+
+Deliver:
+1. "Best moments" — the 5-8 strongest moments in the source, each with a short quote or summary and its timestamp if the source has them.
+2. One section per requested output, ready to post:
+   - Short clip ideas: for each clip give the start and end timestamp (or the exact quote to cut from), the hook overlay text, the suggested length, and which platform it's for.
+   - Hooks: grouped by clip or theme.
+   - Platform captions: one per platform, written for how that platform reads captions, with 3-5 researched hashtags each.
+   - Carousel: slide-by-slide overlay text.
+   - Thread / LinkedIn / newsletter: the full text.
+   - YouTube: 3 title options and a description with chapters if timestamps exist.
+   - Quote graphics: the exact quote and a one-line design direction.
+3. "Posting order" — a simple 7-day plan for rolling these out so they don't compete with each other.`,
+  },
 ];
 
 export function getTool(id) {

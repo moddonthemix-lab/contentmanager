@@ -16,7 +16,10 @@ const NEXT_STEPS = {
   captions: ["engagement", "design"],
   engagement: ["calendar", "hooks"],
   schedule: ["calendar"],
+  repurpose: ["captions", "design", "schedule"],
 };
+
+const REFINE_SUFFIX = "\n\nKeep the same structure and return the full revised version. Do new research if the change needs it.";
 
 // ---------- storage (browser-local; every access guarded) ----------
 const store = {
@@ -42,6 +45,9 @@ const state = {
   profile: store.get("profile", {}),
   notes: store.get("notes", []),
   library: store.get("library", []),
+  hasKey: false,
+  model: "",
+  mode: "free", // "free" = copy the prompt into claude.ai, "auto" = run through the API
   current: null, // { tool, values, turns, output, controller }
   prefill: null, // values carried over from a "next step" chip
 };
@@ -54,7 +60,8 @@ async function init() {
     const res = await fetch("/api/tools");
     const data = await res.json();
     state.tools = data.tools;
-    $("#model-label").textContent = `Research + writing by ${data.model}`;
+    state.hasKey = data.hasKey;
+    state.model = data.model;
   } catch {
     toast("Couldn't reach the server. Is it running?");
     return;
@@ -64,6 +71,7 @@ async function init() {
   renderNotes();
   renderLibrary();
   bindStatic();
+  setMode(store.get("mode", state.hasKey ? "auto" : "free"));
   window.addEventListener("hashchange", route);
   route();
 }
@@ -94,7 +102,34 @@ function renderNav() {
   updateCounts();
 }
 
+function setMode(mode) {
+  state.mode = mode === "auto" && state.hasKey ? "auto" : "free";
+  store.set("mode", state.mode);
+  $$("[data-mode]").forEach((b) => b.classList.toggle("active", b.dataset.mode === state.mode));
+  const auto = $('[data-mode="auto"]');
+  auto.disabled = !state.hasKey;
+  auto.title = state.hasKey ? "" : "Add ANTHROPIC_API_KEY to .env and restart the server to turn on Auto mode";
+  $("#model-label").textContent =
+    state.mode === "auto"
+      ? `Auto: research and writing run here using ${state.model}. Billed to your API key.`
+      : `Free: you paste each prompt into claude.ai. No API key needed.${state.hasKey ? "" : " Add a key to turn on Auto."}`;
+  updateFormFoot();
+}
+
+function updateFormFoot() {
+  const btn = $("#submit-btn");
+  if (!btn) return;
+  const free = state.mode === "free";
+  btn.textContent = free ? "Build my prompt" : "Research & create";
+  $("#submit-hint").textContent = free
+    ? "Free mode: you'll copy the prompt into Claude and paste the answer back."
+    : "Live web research runs every time. Usually 1–3 minutes.";
+}
+
 function bindStatic() {
+  $$("[data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  $("#free-copy").addEventListener("click", () => copy($("#free-prompt").value));
+  $("#free-show").addEventListener("click", showFreeAnswer);
   $$("[data-view]").forEach((b) => b.addEventListener("click", () => (location.hash = `#${b.dataset.view}`)));
   $("#menu-toggle").addEventListener("click", () => document.body.classList.toggle("menu-open"));
   $(".main").addEventListener("click", (e) => {
@@ -114,7 +149,8 @@ function bindStatic() {
     if (!text || !state.current) return;
     $("#refine-input").value = "";
     const c = state.current;
-    c.turns.push({ role: "assistant", text: c.output }, { role: "user", text: `${text}\n\nKeep the same structure and return the full revised version. Do new research if the change needs it.` });
+    if (state.mode === "free") return runFree(text + REFINE_SUFFIX);
+    c.turns.push({ role: "assistant", text: c.output }, { role: "user", text: text + REFINE_SUFFIX });
     run();
   });
 }
@@ -135,14 +171,19 @@ function openTool(tool) {
   const form = $("#tool-form");
   form.innerHTML =
     tool.fields.map((f) => fieldHtml(f, initialValue(f, prefill))).join("") +
-    `<div class="form-foot"><button class="btn primary" type="submit">Research &amp; create</button><span class="muted">Live web research runs every time — usually 1–3 minutes.</span></div>`;
+    `<div class="form-foot"><button class="btn primary" type="submit" id="submit-btn"></button><span class="muted" id="submit-hint"></span></div>`;
+  updateFormFoot();
+  $$("[data-load-into]", form).forEach((input) => input.addEventListener("change", () => loadTextFile(input, form)));
   form.onsubmit = (e) => {
     e.preventDefault();
     const values = readForm(tool, form);
     const missing = tool.fields.filter((f) => f.required && isEmpty(values[f.id]));
     if (missing.length) return toast(`Fill in: ${missing.map((f) => f.label).join(", ")}`);
+    if (tool.requireOne?.every((id) => isEmpty(values[id]))) {
+      return toast(`Fill in: ${tool.fields.filter((f) => tool.requireOne.includes(f.id)).map((f) => f.label).join(" or ")}`);
+    }
     state.current = { tool, values, turns: [], output: "" };
-    run();
+    state.mode === "free" ? runFree() : run();
   };
 }
 
@@ -162,6 +203,9 @@ function fieldHtml(f, value) {
   const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : "";
   const label = esc(f.label);
   switch (f.type) {
+    case "longtext":
+      return `<label>${label}<textarea name="${f.id}" rows="8"${ph}>${esc(value)}</textarea></label>
+        <div class="file-load"><label class="btn ghost small file-btn">Load a file<input type="file" data-load-into="${f.id}" accept="${esc(f.accept || "")}" hidden /></label><span class="muted" data-file-name="${f.id}"></span></div>`;
     case "textarea":
       return `<label>${label}<textarea name="${f.id}" rows="3"${ph}${req}>${esc(value)}</textarea></label>`;
     case "select":
@@ -193,7 +237,92 @@ function readForm(tool, form) {
   return values;
 }
 
+async function loadTextFile(input, form) {
+  const file = input.files[0];
+  input.value = "";
+  if (!file) return;
+  if (file.size > 3_000_000) return toast("That file is too big. Paste the part you want to use instead.");
+  let text = await file.text();
+  if (/\.(srt|vtt)$/i.test(file.name)) {
+    // Keep timestamps (useful for clip ideas) but drop cue numbers and the WEBVTT header.
+    text = text.replace(/^WEBVTT.*$/m, "").replace(/^\d+\s*$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+  }
+  form.elements[input.dataset.loadInto].value = text;
+  $(`[data-file-name="${input.dataset.loadInto}"]`, form).textContent = `Loaded ${file.name}`;
+}
+
 // ---------- running a tool ----------
+function requestBody(c) {
+  return JSON.stringify({
+    toolId: c.tool.id,
+    values: c.values,
+    turns: c.turns,
+    profile: state.profile,
+    notes: state.notes,
+    timezone: state.profile.timezone || LOCAL_TZ,
+    today: localDate(),
+  });
+}
+
+function resetRunUi() {
+  $("#run").hidden = false;
+  $("#output").innerHTML = "";
+  $("#output-card").hidden = false;
+  $("#free-card").hidden = true;
+  $(".research").hidden = false;
+  $("#error").hidden = true;
+  $("#activity").innerHTML = "";
+  $("#sources").innerHTML = "";
+  $("#sources-card").hidden = true;
+  $("#actions").hidden = true;
+  $("#next-card").hidden = true;
+  $("#refine-form").hidden = true;
+}
+
+// Free mode: show the prompt to copy into claude.ai, then take the pasted answer.
+async function runFree(followUp) {
+  const c = state.current;
+  c.controller?.abort();
+  resetRunUi();
+  $(".research").hidden = true;
+  $("#output-card").hidden = true;
+  $("#free-card").hidden = false;
+  $("#free-answer").value = "";
+  $("#run").scrollIntoView({ behavior: "smooth", block: "start" });
+
+  if (followUp) {
+    $("#free-title").textContent = "Copy your follow-up";
+    $("#free-hint").textContent = "Send it in the same Claude chat as before, so Claude still has the earlier answer.";
+    $("#free-prompt").value = followUp;
+    return;
+  }
+  $("#free-title").textContent = "Copy your prompt";
+  $("#free-hint").textContent = "It already includes your profile, performance notes, the research instructions and the output format.";
+  $("#free-prompt").value = "Building your prompt…";
+  try {
+    const res = await fetch("/api/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody(c) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    if (c === state.current) $("#free-prompt").value = data.prompt;
+  } catch (err) {
+    $("#free-prompt").value = "";
+    $("#output-card").hidden = false;
+    showError(err.message);
+  }
+}
+
+function showFreeAnswer() {
+  const c = state.current;
+  const text = $("#free-answer").value.trim();
+  if (!c) return;
+  if (!text) return toast("Paste Claude's answer first.");
+  c.output = text;
+  $("#free-card").hidden = true;
+  $("#output-card").hidden = false;
+  $("#output").innerHTML = renderMarkdown(c.output);
+  finishRun(c);
+}
+
 async function run() {
   const c = state.current;
   c.controller?.abort();
@@ -202,15 +331,7 @@ async function run() {
   const previous = c.output;
   c.output = "";
 
-  $("#run").hidden = false;
-  $("#output").innerHTML = "";
-  $("#error").hidden = true;
-  $("#activity").innerHTML = "";
-  $("#sources").innerHTML = "";
-  $("#sources-card").hidden = true;
-  $("#actions").hidden = true;
-  $("#next-card").hidden = true;
-  $("#refine-form").hidden = true;
+  resetRunUi();
   $("#stop-btn").hidden = false;
   $("#research-pulse").classList.add("on");
   $("#research-title").textContent = c.turns.length ? "Refining" : "Researching";
@@ -238,15 +359,7 @@ async function run() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({
-        toolId: c.tool.id,
-        values: c.values,
-        turns: c.turns,
-        profile: state.profile,
-        notes: state.notes,
-        timezone: state.profile.timezone || LOCAL_TZ,
-        today: localDate(),
-      }),
+      body: requestBody(c),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -370,13 +483,14 @@ function showError(msg) {
 }
 
 function setBusy(busy) {
-  $$('#tool-form button[type="submit"], #refine-form button').forEach((b) => (b.disabled = busy));
+  $$('#tool-form button[type="submit"], #refine-form button, [data-mode]').forEach((b) => (b.disabled = busy));
+  if (!busy) $('[data-mode="auto"]').disabled = !state.hasKey;
 }
 
 // ---------- library ----------
 function titleFor(c) {
   const v = c.values;
-  return v.topic || v.niche || (Array.isArray(v.platforms) ? v.platforms.join(", ") : "") || c.tool.name;
+  return v.topic || v.sourceUrl || v.source?.slice(0, 60) || v.niche || (Array.isArray(v.platforms) ? v.platforms.join(", ") : "") || c.tool.name;
 }
 
 function saveCurrent() {

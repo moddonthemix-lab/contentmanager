@@ -46,7 +46,12 @@ nav ul { list-style: none; margin: 0 0 14px; padding: 0; }
   font-family: var(--display); color: var(--accent); width: 22px; text-align: center; flex: none;
 }
 .badge { margin-left: auto; font-size: 12px; color: var(--muted); }
-.sidebar-foot { margin-top: auto; font-size: 12px; color: var(--muted); padding: 8px; }
+.sidebar-foot { margin-top: auto; padding: 8px 0 0; }
+.sidebar-foot .muted { font-size: 12px; padding: 8px; margin: 0; }
+.mode-switch { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; margin: 0 8px; }
+.mode-switch button { background: none; border: 0; border-radius: 7px; padding: 7px; cursor: pointer; font-weight: 600; color: var(--muted); }
+.mode-switch button.active { background: var(--accent); color: var(--accent-ink); }
+.mode-switch button:disabled { opacity: .4; cursor: not-allowed; }
 
 /* Main */
 .main { padding: 36px clamp(16px, 4vw, 56px) 80px; max-width: 1040px; width: 100%; }
@@ -109,6 +114,14 @@ textarea { resize: vertical; }
 .activity li[data-kind="done"] { color: var(--text); }
 .activity li[data-kind="done"]::before { content: "✓"; }
 
+.free { display: grid; gap: 12px; }
+.free-step { display: flex; gap: 12px; align-items: flex-start; }
+.free-step p { margin: 2px 0 0; }
+.step-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-family: var(--display); }
+.free textarea[readonly] { color: var(--muted); font-size: 13px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+a.btn { text-decoration: none; color: var(--text); display: inline-flex; align-items: center; }
+.file-load { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .output:empty { display: none; }
 .output-body:empty::before { content: "Results will stream in here as soon as research is done…"; color: var(--muted); }
 .error { margin-top: 12px; color: var(--danger); background: rgba(255, 122, 122, .08); border-radius: 10px; padding: 10px 12px; }

@@ -27,7 +27,14 @@
           <li><button class="nav-item" data-view="library"><span class="nav-num">▤</span>Library <span class="badge" id="library-count"></span></button></li>
         </ul>
       </nav>
-      <p class="sidebar-foot" id="model-label"></p>
+      <div class="sidebar-foot">
+        <div class="nav-label">Mode</div>
+        <div class="mode-switch" role="group" aria-label="Mode">
+          <button type="button" data-mode="free">Free</button>
+          <button type="button" data-mode="auto">Auto</button>
+        </div>
+        <p class="muted" id="model-label"></p>
+      </div>
     </aside>
 
     <main class="main">
@@ -55,7 +62,38 @@
             <ol class="activity" id="activity"></ol>
           </div>
 
-          <article class="card output">
+          <div class="card free" id="free-card" hidden>
+            <div class="free-step">
+              <span class="step-num">1</span>
+              <div>
+                <strong id="free-title">Copy your prompt</strong>
+                <p class="muted" id="free-hint">It already includes your profile, performance notes, the research instructions and the output format.</p>
+              </div>
+            </div>
+            <textarea id="free-prompt" rows="6" readonly></textarea>
+            <div class="row">
+              <button class="btn primary" id="free-copy" type="button">Copy prompt</button>
+              <a class="btn ghost" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer" id="free-open">Open Claude ↗</a>
+            </div>
+            <div class="free-step">
+              <span class="step-num">2</span>
+              <div>
+                <strong>Paste it into Claude</strong>
+                <p class="muted" id="free-step2">Use a free claude.ai account and check that web search is turned on, so it can do live research.</p>
+              </div>
+            </div>
+            <div class="free-step">
+              <span class="step-num">3</span>
+              <div>
+                <strong>Paste Claude's answer back here</strong>
+                <p class="muted">Then you can save it, export it, refine it, or send it to the next tool.</p>
+              </div>
+            </div>
+            <textarea id="free-answer" rows="6" placeholder="Paste the full answer from Claude"></textarea>
+            <div class="row"><button class="btn primary" id="free-show" type="button">Show result</button></div>
+          </div>
+
+          <article class="card output" id="output-card">
             <div class="output-body markdown" id="output"></div>
             <div class="error" id="error" hidden></div>
           </article>
