@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Content Studio</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23d9f26b%22/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-mark">CS</span>
+        <span class="brand-name">Content Studio</span>
+      </div>
+      <nav>
+        <div class="nav-label">Tools</div>
+        <ul id="tool-nav"></ul>
+        <div class="nav-label">Your workspace</div>
+        <ul>
+          <li><button class="nav-item" data-view="profile"><span class="nav-num">◎</span>Creator profile</button></li>
+          <li><button class="nav-item" data-view="notes"><span class="nav-num">↗</span>Performance notes <span class="badge" id="notes-count"></span></button></li>
+          <li><button class="nav-item" data-view="library"><span class="nav-num">▤</span>Library <span class="badge" id="library-count"></span></button></li>
+        </ul>
+      </nav>
+      <p class="sidebar-foot" id="model-label"></p>
+    </aside>
+
+    <main class="main">
+      <button class="menu-toggle" id="menu-toggle" aria-label="Open menu">☰</button>
+
+      <!-- Tool view -->
+      <section class="view" id="view-tool" hidden>
+        <header class="view-head">
+          <h1 id="tool-title"></h1>
+          <p class="lede" id="tool-tagline"></p>
+        </header>
+        <div class="profile-hint" id="profile-hint" hidden>
+          Fill in your <button class="link" data-view="profile">creator profile</button> once and every tool will tailor its research and writing to you.
+        </div>
+        <form id="tool-form" class="card form" autocomplete="off"></form>
+
+        <div id="run" class="run" hidden>
+          <div class="card research">
+            <div class="research-head">
+              <span class="pulse" id="research-pulse"></span>
+              <strong id="research-title">Researching</strong>
+              <span class="muted" id="research-counts"></span>
+              <button class="btn ghost small" id="stop-btn" type="button">Stop</button>
+            </div>
+            <ol class="activity" id="activity"></ol>
+          </div>
+
+          <article class="card output">
+            <div class="output-body markdown" id="output"></div>
+            <div class="error" id="error" hidden></div>
+          </article>
+
+          <div class="card sources" id="sources-card" hidden>
+            <details>
+              <summary>Sources checked <span class="muted" id="sources-count"></span></summary>
+              <ul id="sources"></ul>
+            </details>
+          </div>
+
+          <div class="actions" id="actions" hidden>
+            <button class="btn" id="save-btn" type="button">Save to library</button>
+            <button class="btn ghost" id="copy-btn" type="button">Copy</button>
+            <button class="btn ghost" id="download-btn" type="button">Download .md</button>
+            <button class="btn ghost" id="csv-btn" type="button" hidden>Download table as CSV</button>
+          </div>
+
+          <div class="card next" id="next-card" hidden>
+            <div class="nav-label">Keep the flow going</div>
+            <div class="chips" id="next-chips"></div>
+          </div>
+
+          <form class="card refine" id="refine-form" hidden>
+            <label for="refine-input">Refine this result</label>
+            <div class="refine-row">
+              <input id="refine-input" placeholder="e.g. make the hooks punchier, swap day 12 for a collab, write it for LinkedIn instead" />
+              <button class="btn" type="submit">Refine</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Profile view -->
+      <section class="view" id="view-profile" hidden>
+        <header class="view-head">
+          <h1>Creator profile</h1>
+          <p class="lede">Every tool reads this before it researches and writes, so results fit your niche, audience and voice.</p>
+        </header>
+        <form id="profile-form" class="card form">
+          <div class="grid">
+            <label>Brand / creator name<input name="brandName" /></label>
+            <label>Niche<input name="niche" placeholder="e.g. budget travel for students" /></label>
+          </div>
+          <label>Target audience<input name="audience" placeholder="Who they are, what they want, what they struggle with" /></label>
+          <div class="grid">
+            <label>Audience location<input name="audienceLocation" placeholder="e.g. US, UK, worldwide" /></label>
+            <label>Time zone<input name="timezone" /></label>
+          </div>
+          <fieldset><legend>Platforms</legend><div class="checks" id="profile-platforms"></div></fieldset>
+          <label>Brand voice<input name="voice" placeholder="e.g. funny, blunt, big-sister energy, no corporate speak" /></label>
+          <label>Goals<input name="goals" placeholder="e.g. grow to 10k, drive sales of my preset pack, book clients" /></label>
+          <label>What you sell or promote (optional)<input name="offer" /></label>
+          <label>Things to avoid (optional)<input name="avoid" placeholder="Topics, words, competitors, styles" /></label>
+          <div class="form-foot">
+            <button class="btn" type="submit">Save profile</button>
+            <span class="muted" id="profile-saved"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- Notes view -->
+      <section class="view" id="view-notes" hidden>
+        <header class="view-head">
+          <h1>Performance notes</h1>
+          <p class="lede">Log what worked and what flopped. Your 25 most recent notes go into every request, so the tools get sharper the more you post.</p>
+        </header>
+        <form id="note-form" class="card form">
+          <label>What happened?<textarea name="text" required rows="3" placeholder="e.g. 'Mistake' hook on the sourdough reel got 3x normal views; carousels with 8+ slides got more saves; Tuesday 7pm flopped"></textarea></label>
+          <div class="grid">
+            <label>Result
+              <select name="result">
+                <option value="worked">Worked</option>
+                <option value="flopped">Flopped</option>
+                <option value="mixed">Mixed / learning</option>
+              </select>
+            </label>
+            <label>Date<input name="date" type="date" /></label>
+          </div>
+          <div class="form-foot"><button class="btn" type="submit">Add note</button></div>
+        </form>
+        <ul class="note-list" id="note-list"></ul>
+      </section>
+
+      <!-- Library view -->
+      <section class="view" id="view-library" hidden>
+        <header class="view-head">
+          <h1>Library</h1>
+          <p class="lede">Everything you've saved, stored in this browser.</p>
+        </header>
+        <div class="library-tools">
+          <input id="library-search" placeholder="Search saved content" />
+          <button class="btn ghost small" id="export-btn" type="button">Export workspace</button>
+          <label class="btn ghost small file-btn">Import<input type="file" id="import-input" accept="application/json" hidden /></label>
+        </div>
+        <ul class="library-list" id="library-list"></ul>
+        <article class="card output" id="library-detail" hidden>
+          <div class="detail-head">
+            <button class="btn ghost small" id="library-back" type="button">← Back</button>
+            <button class="btn ghost small" id="library-copy" type="button">Copy</button>
+            <button class="btn ghost small danger" id="library-delete" type="button">Delete</button>
+          </div>
+          <div class="output-body markdown" id="library-body"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

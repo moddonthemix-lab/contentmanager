@@ -1,0 +1,29 @@
+{
+  "name": "content-studio",
+  "version": "1.0.0",
+  "description": "Research-backed social media content tools",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --watch --env-file-if-exists=.env server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moddonthemix-lab/contentmanager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/moddonthemix-lab/contentmanager/issues"
+  },
+  "homepage": "https://github.com/moddonthemix-lab/contentmanager#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "dompurify": "^3.4.17",
+    "express": "^5.3.0",
+    "marked": "^18.1.1"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  }
+}
